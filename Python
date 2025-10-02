@@ -1,0 +1,299 @@
+from flask import Flask, render_template_string, request, jsonify 
+app = Flask(_name_) 
+currency_rates = { 
+'USD': 1.0, 
+'EUR': 0.91, 
+'INR': 82.75, 
+'GBP': 0.78, 
+'AUD': 1.46, 
+'JPY': 139.0, 
+'CAD': 1.34, 
+'SGD': 1.35, 
+'CHF': 0.91, 
+'CNY': 6.92 
+} 
+HTML_TEMPLATE = """ 
+<!DOCTYPE html> 
+<html lang="en"> 
+<head> 
+<meta charset="UTF-8" /> 
+<meta name="viewport" content="width=device-width, initial-scale=1" /> 
+<title> Currency Exchange Calculator</title> 
+<style> 
+@import 
+url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap'); 
+body { 
+margin: 0; 
+font-family: 'Poppins', sans-serif; 
+background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+min-height: 100vh; 
+display: flex; 
+justify-content: center; 
+align-items: center; 
+padding: 20px; 
+} 
+.container { 
+background: #ffffffdd; 
+padding: 2.5rem 3rem; 
+border-radius: 20px; 
+box-shadow: 0 10px 40px rgba(0,0,0,0.25); 
+max-width: 460px; 
+width: 100%; 
+text-align: center; 
+} 
+h1 { 
+margin-bottom: 1rem; 
+font-weight: 700; 
+font-size: 2rem; 
+color: #4b367c; 
+letter-spacing: 1.5px; 
+} 
+label { 
+display: block; 
+margin-bottom: 0.5rem; 
+font-weight: 600; 
+color: #5a4a7b; 
+text-align: left; 
+} 
+select, input[type="number"], input[type="text"] { 
+width: 100%; 
+padding: 0.75rem 1rem; 
+margin-bottom: 1.2rem; 
+border: none; 
+border-radius: 15px; 
+font-size: 1rem; 
+background: #f3f1f5; 
+box-shadow: inset 5px 5px 10px #d1cde1, 
+inset -5px -5px 10px #f9f8fb; 
+transition: box-shadow 0.3s ease; 
+} 
+select:focus, input[type="number"]:focus, input[type="text"]:focus { 
+outline: none; 
+box-shadow: inset 3px 3px 6px #a294be, 
+inset -3px -3px 6px #ddd9f2; 
+} 
+button { 
+width: 100%; 
+padding: 12px;   
+    background: #6c63ff; 
+    border: none; 
+    border-radius: 15px; 
+    color: white; 
+    font-weight: 700; 
+    font-size: 1.2rem; 
+    letter-spacing: 1px; 
+    cursor: pointer; 
+    box-shadow: 0 8px 20px #5039e2; 
+    transition: background 0.3s ease; 
+  } 
+  button:hover { 
+    background: #5648c8; 
+    box-shadow: 0 12px 25px #3c2f98; 
+  } 
+  .result { 
+    margin-top: 1.5rem; 
+    font-size: 1.3rem; 
+    font-weight: 700; 
+    color: #4b367c; 
+    min-height: 36px; 
+    letter-spacing: 1px; 
+    text-shadow: 0 2px 6px rgba(107, 90, 171, 0.3); 
+  } 
+  .error { 
+    color: #e74c3c; 
+  } 
+  footer { 
+    margin-top: 2rem; 
+    font-size: 0.85rem; 
+    color: #ac9cd1; 
+    text-align: center; 
+  } 
+  .history { 
+    margin-top: 1.5rem; 
+    background: #ebe9f7; 
+    padding: 1rem 1.5rem; 
+    border-radius: 15px; 
+    height: 140px; 
+    overflow-y: auto; 
+    font-size: 0.9rem; 
+    color: #4b367c; 
+    text-align: left; 
+  } 
+  .history h3 { 
+    margin-top: 0; 
+    margin-bottom: 0.75rem; 
+    font-weight: 700; 
+    font-size: 1.1rem; 
+  } 
+  .history ul { 
+    padding-left: 1rem; 
+    margin: 0; 
+  } 
+  .history ul li { 
+    margin-bottom: 0.5rem; 
+} 
+.swap-btn { 
+cursor: pointer; 
+background: #8e83f7; 
+border: none; 
+color: white; 
+font-weight: 700; 
+border-radius: 50%; 
+width: 36px; 
+height: 36px; 
+font-size: 1.2rem; 
+position: relative; 
+top: 33px; 
+left: -36px; 
+box-shadow: 0 4px 12px #655de6; 
+transition: background 0.3s ease; 
+} 
+.swap-btn:hover { 
+background: #6c54e1; 
+} 
+</style> 
+</head> 
+<body> 
+<div class="container"> 
+<h1> Currency Exchange Calculator</h1> 
+<form id="exchange-form"> 
+<label for="amount">Amount</label> 
+<input type="number" id="amount" name="amount" min="0" step="any" required 
+placeholder="Enter amount" /> 
+<label for="from_currency">From Currency</label> 
+<div style="position: relative;"> 
+<select id="from_currency" name="from_currency" required> 
+{% for code in currencies %} 
+<option value="{{code}}">{{code}}</option> 
+{% endfor %} 
+</select> 
+<button type="button" class="swap-btn" title="Swap Currencies">&#8646;</button> 
+</div> 
+<label for="to_currency">To Currency</label> 
+<select id="to_currency" name="to_currency" required> 
+{% for code in currencies %} 
+<option value="{{code}}">{{code}}</option> 
+{% endfor %} 
+</select> 
+<label for="custom_rate">Custom Exchange Rate (optional)</label> 
+<input type="text" id="custom_rate" name="custom_rate" placeholder="e.g. 1.12 (overrides 
+rate)" pattern="^\\d*\\.?\\d+$" title="Enter a positive number"/> 
+<button type="submit">Convert</button> 
+</form> 
+<div class="result" id="result"></div> 
+<div class="history" id="history" style="display:none;"> 
+<h3>Conversion History</h3> 
+<ul id="history-list"></ul> 
+</div> 
+<footer>Powered by Flask &amp; Neumorphic Design | Advanced Features Included</footer> 
+</div> 
+<script> 
+const form = document.getElementById('exchange-form'); 
+const resultDiv = document.getElementById('result'); 
+const historyDiv = document.getElementById('history'); 
+const historyList = document.getElementById('history-list'); 
+const swapBtn = document.querySelector('.swap-btn'); 
+function addToHistory(item) { 
+historyDiv.style.display = 'block'; 
+const li = document.createElement('li'); 
+li.textContent = item; 
+historyList.prepend(li); 
+// Keep max 7 items in history 
+if (historyList.children.length > 7) { 
+historyList.removeChild(historyList.lastChild); 
+} 
+} 
+swapBtn.addEventListener('click', () => { 
+const fromSelect = document.getElementById('from_currency'); 
+const toSelect = document.getElementById('to_currency'); 
+const temp = fromSelect.value; 
+fromSelect.value = toSelect.value; 
+toSelect.value = temp; 
+resultDiv.textContent = ''; 
+}); 
+form.addEventListener('submit', function(e) { 
+e.preventDefault(); 
+const amount = parseFloat(document.getElementById('amount').value); 
+const fromCurrency = document.getElementById('from_currency').value; 
+const toCurrency = document.getElementById('to_currency').value; 
+const customRateInput = document.getElementById('custom_rate').value.trim(); 
+if (isNaN(amount) || amount <= 0) { 
+resultDiv.innerHTML = '<span class="error">Please enter a valid positive amount.</span>'; 
+return; 
+} 
+if (fromCurrency === toCurrency) { 
+resultDiv.textContent = 'Converted Amount: ' + amount.toFixed(2) + ' ' + toCurrency; 
+return; 
+} 
+let customRate = null; 
+if(customRateInput) { 
+const parsedRate = parseFloat(customRateInput); 
+if (isNaN(parsedRate) || parsedRate <= 0) { 
+resultDiv.innerHTML = '<span class="error">Custom rate must be a positive 
+number.</span>'; 
+return; 
+} 
+customRate = parsedRate; 
+} 
+fetch('/convert', { 
+method: 'POST', 
+headers: { 
+'Content-Type': 'application/json' 
+}, 
+body: JSON.stringify({amount, from_currency: fromCurrency, to_currency: toCurrency, 
+custom_rate: customRate}) 
+}) 
+.then(response => response.json()) 
+.then(data => { 
+if (data.error) { 
+resultDiv.innerHTML = '<span class="error">' + data.error + '</span>'; 
+} else { 
+const displayText = 'Converted Amount: ' + data.converted_amount.toFixed(2) + ' ' + 
+toCurrency + (data.rate_used ? ' (Rate used: ' + data.rate_used.toFixed(4) + ')' : ''); 
+resultDiv.textContent = displayText; 
+addToHistory(${amount} ${fromCurrency} → ${data.converted_amount.toFixed(2)} 
+${toCurrency}${data.rate_used ? ' @ rate ' + data.rate_used.toFixed(4) : ''}); 
+} 
+}) 
+.catch(() => { 
+resultDiv.innerHTML = '<span class="error">Error in conversion. Try again later.</span>'; 
+}); 
+}); 
+</script> 
+</body> 
+</html> 
+""" 
+@app.route('/') 
+def index(): 
+return render_template_string(HTML_TEMPLATE, currencies=currency_rates.keys()) 
+@app.route('/convert', methods=['POST']) 
+def convert(): 
+data = request.get_json() 
+try: 
+amount = float(data['amount']) 
+from_curr = data['from_currency'] 
+to_curr = data['to_currency'] 
+custom_rate = data.get('custom_rate') 
+if from_curr not in currency_rates or to_curr not in currency_rates: 
+return jsonify({'error': 'Unsupported currency code.'}) 
+if amount < 0: 
+return jsonify({'error': 'Amount must be positive.'}) 
+if custom_rate is not None: 
+# Validate custom rate 
+try: 
+rate = float(custom_rate) 
+if rate <= 0: 
+return jsonify({'error': 'Custom rate must be positive.'}) 
+converted_amount = amount * rate 
+return jsonify({'converted_amount': converted_amount, 'rate_used': rate}) 
+except ValueError: 
+return jsonify({'error': 'Invalid custom rate.'}) 
+# Default conversion via USD base 
+amount_in_usd = amount / currency_rates[from_curr] 
+converted_amount = amount_in_usd * currency_rates[to_curr] 
+rate_used = currency_rates[to_curr] / currency_rates[from_curr] 
+return jsonify({'converted_amount': converted_amount, 'rate_used': rate_used}) 
+except (KeyError, ValueError, TypeError): 
+return jsonify({'error': 'Invalid input data.'}) 
+if _name_ == '_main_': 
+app.run(debug=True)
